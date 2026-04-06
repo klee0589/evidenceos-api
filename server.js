@@ -8,6 +8,8 @@ const systemsRouter = require("./routes/systems");
 const usageRouter = require("./routes/usage");
 const billingRouter = require("./routes/billing");
 const adminRouter = require("./routes/admin");
+const reportsRouter = require("./routes/reports");
+const webhooksRouter = require("./routes/webhooks");
 const { usageLogger } = require("./services/usage");
 
 const app = express();
@@ -55,6 +57,8 @@ app.use("/api/systems", systemsRouter); // Real system integrations (pro)
 app.use("/api/usage", usageRouter);     // Usage stats (any authenticated key)
 app.use("/api/billing", billingRouter); // Stripe checkout + subscription info
 app.use("/api/admin", adminRouter);     // Admin management (JWT)
+app.use("/api/reports", reportsRouter); // Access review reports (exportable)
+app.use("/api/webhooks", webhooksRouter); // Webhook registration + dispatch
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: "Not found." }));

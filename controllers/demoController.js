@@ -1,3 +1,5 @@
+const dispatcher = require("../services/webhookDispatcher");
+
 // Seed data for each supported system
 const SYSTEMS = {
   "google-workspace": {
@@ -73,10 +75,22 @@ function getAccessReview(req, res) {
   const { label, users } = SYSTEMS[systemKey];
   const warnings = users.filter((u) => !u.mfa).length;
 
+  const ts = randomTimestamp();
+
+  if (warnings > 0) {
+    dispatcher.dispatch("access_review.flagged", {
+      event: "access_review.flagged",
+      system: label,
+      flagged_users: warnings,
+      timestamp: ts,
+      data: users.filter((u) => !u.mfa),
+    });
+  }
+
   res.json({
     control: "Access Review",
     system: label,
-    timestamp: randomTimestamp(),
+    timestamp: ts,
     status: warnings === 0 ? "Pass" : "Warning",
     users,
     summary: buildSummary(users),
@@ -252,18 +266,30 @@ function getAuditLog(req, res) {
     });
   }
 
-  const events = AUDIT_LOGS[systemKey];
+  const auditEvents = AUDIT_LOGS[systemKey];
   const { label } = SYSTEMS[systemKey];
-  const warnings = events.filter((e) => e.risk === "high" || e.risk === "medium").length;
+  const warnings = auditEvents.filter((e) => e.risk === "high" || e.risk === "medium").length;
+  const highRisk = auditEvents.filter((e) => e.risk === "high");
+  const ts = randomTimestamp();
+
+  if (highRisk.length > 0) {
+    dispatcher.dispatch("audit_log.high_risk", {
+      event: "audit_log.high_risk",
+      system: label,
+      high_risk_count: highRisk.length,
+      timestamp: ts,
+      data: highRisk,
+    });
+  }
 
   res.json({
     control: "Audit Log",
     system: label,
-    timestamp: randomTimestamp(),
+    timestamp: ts,
     status: warnings === 0 ? "Pass" : "Warning",
-    events,
-    summary: `${events.length} events reviewed, ${warnings} warning${warnings !== 1 ? "s" : ""}`,
+    events: auditEvents,
+    summary: `${auditEvents.length} events reviewed, ${warnings} warning${warnings !== 1 ? "s" : ""}`,
   });
 }
 
-module.exports = { getAccessReview, getSystems, getAuditLog };
+module.exports = { getAccessReview, getSystems, getAuditLog, SYSTEMS };
