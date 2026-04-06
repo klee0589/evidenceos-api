@@ -8,7 +8,6 @@ const systemsRouter = require("./routes/systems");
 const usageRouter = require("./routes/usage");
 const billingRouter = require("./routes/billing");
 const adminRouter = require("./routes/admin");
-const { webhook } = require("./controllers/billingController");
 const { usageLogger } = require("./services/usage");
 
 const app = express();
@@ -21,13 +20,6 @@ app.use(
     methods: ["GET", "POST", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
   })
-);
-
-// ── Stripe webhook — must receive raw body BEFORE express.json() ──────────────
-app.post(
-  "/api/billing/webhook",
-  express.raw({ type: "application/json" }),
-  webhook
 );
 
 // ── General middleware ────────────────────────────────────────────────────────

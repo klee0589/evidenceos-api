@@ -1,15 +1,13 @@
 const { Router } = require("express");
-const express = require("express");
 const { requireApiKey } = require("../middleware/auth");
-const { checkout, webhook, subscription } = require("../controllers/billingController");
+const { webhook, subscription } = require("../controllers/billingController");
 
 const router = Router();
 
-// Stripe webhook needs raw body — must be declared BEFORE express.json()
-// We handle this at the server level by mounting the webhook route separately.
-// This route file handles the authenticated billing endpoints.
+// Public — called by Base44, no API key needed (secured by shared secret header)
+router.post("/webhook", webhook);
 
-router.post("/checkout", requireApiKey, checkout);
+// Authenticated — any valid API key can check their own subscription
 router.get("/subscription", requireApiKey, subscription);
 
 module.exports = router;
