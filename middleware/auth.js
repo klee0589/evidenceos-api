@@ -56,6 +56,16 @@ function requireApiKey(req, res, next) {
   db.prepare("UPDATE api_keys SET last_used_at = datetime('now') WHERE id = ?").run(keyRow.id);
 
   req.apiKey = keyRow;
+
+  // Set rate-limit headers for this key (rateLimitByPlan will override after incrementing)
+  const { PLAN_LIMITS } = require("./rateLimit");
+  const limit = PLAN_LIMITS[keyRow.plan] ?? PLAN_LIMITS.free;
+  res.set({
+    "X-RateLimit-Limit": limit,
+    "X-RateLimit-Remaining": Math.max(0, limit - keyRow.calls_today),
+    "X-RateLimit-Plan": keyRow.plan,
+  });
+
   next();
 }
 
