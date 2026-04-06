@@ -1,6 +1,5 @@
 const jwt = require("jsonwebtoken");
 const { createApiKey, getKeysByEmail } = require("../services/apiKey");
-const db = require("../db");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

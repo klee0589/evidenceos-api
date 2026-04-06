@@ -35,7 +35,6 @@ function webhook(req, res) {
     const result = applyPlanChange({
       email: data.email,
       plan: data.plan,
-      base44EntityId: event?.entity_id || null,
       eventType: event?.type || "webhook",
     });
 

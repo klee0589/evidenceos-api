@@ -1,6 +1,5 @@
 const { getUsageForKey } = require("../services/usage");
 const { PLAN_LIMITS } = require("../middleware/rateLimit");
-const db = require("../db");
 
 // GET /api/usage
 function getUsage(req, res) {

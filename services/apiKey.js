@@ -44,15 +44,4 @@ function renewKey(id) {
   return db.prepare("UPDATE api_keys SET is_active = 1 WHERE id = ?").run(id);
 }
 
-// Attach Stripe IDs after checkout completes
-function attachStripe(id, customerId, subscriptionId, plan) {
-  return db
-    .prepare(
-      `UPDATE api_keys
-       SET stripe_customer_id = ?, stripe_subscription_id = ?, plan = ?
-       WHERE id = ?`
-    )
-    .run(customerId, subscriptionId, plan, id);
-}
-
-module.exports = { createApiKey, getKeysByEmail, revokeKey, renewKey, attachStripe };
+module.exports = { createApiKey, getKeysByEmail, revokeKey, renewKey };

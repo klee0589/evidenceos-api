@@ -7,7 +7,7 @@ function listAllKeys(req, res) {
   const { plan, active } = req.query;
   let query = `
     SELECT id, key_prefix, user_email, plan, calls_today, last_reset,
-           is_active, stripe_customer_id, created_at, last_used_at
+           is_active, created_at, last_used_at
     FROM api_keys WHERE 1=1`;
   const params = [];
 

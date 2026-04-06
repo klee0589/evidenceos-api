@@ -17,39 +17,34 @@ db.pragma("foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS api_keys (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    key_hash    TEXT    NOT NULL UNIQUE,
-    key_prefix  TEXT    NOT NULL,          -- e.g. "eos_live_abc1" (first 16 chars shown to user)
-    user_email  TEXT    NOT NULL,
-    plan        TEXT    NOT NULL DEFAULT 'free', -- 'free' | 'pro'
-    calls_today INTEGER NOT NULL DEFAULT 0,
-    last_reset  TEXT    NOT NULL DEFAULT (date('now')),
-    is_active   INTEGER NOT NULL DEFAULT 1,
-    stripe_customer_id     TEXT,
-    stripe_subscription_id TEXT,
-    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_hash     TEXT    NOT NULL UNIQUE,
+    key_prefix   TEXT    NOT NULL,       -- first 16 chars shown to user, e.g. "eos_live_abc123d"
+    user_email   TEXT    NOT NULL,
+    plan         TEXT    NOT NULL DEFAULT 'free', -- 'free' | 'pro'
+    calls_today  INTEGER NOT NULL DEFAULT 0,
+    last_reset   TEXT    NOT NULL DEFAULT (date('now')),
+    is_active    INTEGER NOT NULL DEFAULT 1,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
     last_used_at TEXT
   );
 
   CREATE TABLE IF NOT EXISTS usage_logs (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    api_key_id      INTEGER REFERENCES api_keys(id),
-    endpoint        TEXT NOT NULL,
-    system          TEXT,
-    status_code     INTEGER,
-    response_ms     INTEGER,
-    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_key_id  INTEGER REFERENCES api_keys(id),
+    endpoint    TEXT    NOT NULL,
+    system      TEXT,
+    status_code INTEGER,
+    response_ms INTEGER,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS billing_events (
-    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-    api_key_id             INTEGER REFERENCES api_keys(id),
-    event_type             TEXT NOT NULL,   -- 'subscription.created' | 'subscription.cancelled' | 'invoice.paid' etc.
-    plan                   TEXT,
-    stripe_event_id        TEXT UNIQUE,
-    stripe_customer_id     TEXT,
-    stripe_subscription_id TEXT,
-    created_at             TEXT NOT NULL DEFAULT (datetime('now'))
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_key_id INTEGER REFERENCES api_keys(id),
+    event_type TEXT    NOT NULL, -- 'update' | 'webhook' | 'customer.subscription.deleted' etc.
+    plan       TEXT,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE INDEX IF NOT EXISTS idx_usage_key_date ON usage_logs(api_key_id, created_at);

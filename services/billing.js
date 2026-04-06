@@ -3,7 +3,7 @@ const db = require("../db");
 const VALID_PLANS = ["free", "pro"];
 
 // Apply a plan change coming from a Base44 webhook
-function applyPlanChange({ email, plan, base44EntityId = null, eventType = "update" }) {
+function applyPlanChange({ email, plan, eventType = "update" }) {
   if (!VALID_PLANS.includes(plan)) {
     throw new Error(`Unknown plan "${plan}". Valid: ${VALID_PLANS.join(", ")}`);
   }
@@ -20,7 +20,6 @@ function applyPlanChange({ email, plan, base44EntityId = null, eventType = "upda
     .prepare("SELECT id FROM api_keys WHERE user_email = ? AND is_active = 1")
     .all(normalizedEmail);
 
-  // stripe_event_id column kept for schema compat but not used with Base44
   const stmt = db.prepare(
     `INSERT INTO billing_events (api_key_id, event_type, plan)
      VALUES (?, ?, ?)`
