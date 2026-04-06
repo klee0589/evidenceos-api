@@ -70,7 +70,7 @@ describe("Plan gating on /api/systems", () => {
 });
 
 describe("Rate limiting", () => {
-  it("tracks calls_today and exposes rate limit headers", async () => {
+  it("tracks calls_today and exposes full usage breakdown", async () => {
     const res = await request(app)
       .get("/api/usage")
       .set("X-API-Key", proKey);
@@ -78,5 +78,9 @@ describe("Rate limiting", () => {
     expect(res.body.today).toHaveProperty("calls");
     expect(res.body.today).toHaveProperty("limit");
     expect(res.body.today).toHaveProperty("remaining");
+    expect(res.body.period).toHaveProperty("totalCalls");
+    expect(Array.isArray(res.body.bySystem)).toBe(true);
+    expect(Array.isArray(res.body.byEndpoint)).toBe(true);
+    expect(Array.isArray(res.body.daily)).toBe(true);
   });
 });

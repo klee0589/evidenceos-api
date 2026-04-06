@@ -24,24 +24,73 @@ function usageLogger(req, res, next) {
   next();
 }
 
-// Aggregate usage for a specific API key
+// Aggregate usage for a specific API key — full breakdown
 function getUsageForKey(apiKeyId, days = 30) {
-  return db
+  const window = `-${days}`;
+
+  // Daily call totals (for trend chart)
+  const daily = db
     .prepare(
       `SELECT
          date(created_at) AS date,
-         endpoint,
-         system,
          COUNT(*) AS calls,
-         AVG(response_ms) AS avg_ms,
-         SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS errors
+         SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS errors,
+         ROUND(AVG(response_ms)) AS avg_ms
        FROM usage_logs
        WHERE api_key_id = ?
          AND created_at >= datetime('now', ? || ' days')
-       GROUP BY date(created_at), endpoint, system
+       GROUP BY date(created_at)
        ORDER BY date DESC`
     )
-    .all(apiKeyId, `-${days}`);
+    .all(apiKeyId, window);
+
+  // Calls per system (e.g. github: 42, aws: 18)
+  const bySystem = db
+    .prepare(
+      `SELECT
+         system,
+         COUNT(*) AS calls,
+         SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS errors,
+         ROUND(AVG(response_ms)) AS avg_ms
+       FROM usage_logs
+       WHERE api_key_id = ?
+         AND system IS NOT NULL
+         AND created_at >= datetime('now', ? || ' days')
+       GROUP BY system
+       ORDER BY calls DESC`
+    )
+    .all(apiKeyId, window);
+
+  // Calls per endpoint
+  const byEndpoint = db
+    .prepare(
+      `SELECT
+         endpoint,
+         COUNT(*) AS calls,
+         SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS errors,
+         ROUND(AVG(response_ms)) AS avg_ms
+       FROM usage_logs
+       WHERE api_key_id = ?
+         AND created_at >= datetime('now', ? || ' days')
+       GROUP BY endpoint
+       ORDER BY calls DESC`
+    )
+    .all(apiKeyId, window);
+
+  // Period totals
+  const totals = db
+    .prepare(
+      `SELECT
+         COUNT(*) AS calls,
+         SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) AS errors,
+         ROUND(AVG(response_ms)) AS avg_ms
+       FROM usage_logs
+       WHERE api_key_id = ?
+         AND created_at >= datetime('now', ? || ' days')`
+    )
+    .get(apiKeyId, window);
+
+  return { daily, bySystem, byEndpoint, totals };
 }
 
 // Admin: global usage summary

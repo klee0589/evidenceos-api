@@ -72,6 +72,13 @@ describe("Authentication enforcement", () => {
       .set("X-API-Key", createdKey);
     expect(res.status).toBe(200);
     expect(res.body.plan).toBe("free");
+    expect(res.body.today).toHaveProperty("calls");
+    expect(res.body.today).toHaveProperty("limit");
+    expect(res.body.today).toHaveProperty("remaining");
+    expect(res.body.period).toHaveProperty("totalCalls");
+    expect(Array.isArray(res.body.bySystem)).toBe(true);
+    expect(Array.isArray(res.body.byEndpoint)).toBe(true);
+    expect(Array.isArray(res.body.daily)).toBe(true);
   });
 
   it("accepts valid API key via Authorization: Bearer header", async () => {
