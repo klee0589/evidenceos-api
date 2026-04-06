@@ -1,12 +1,56 @@
-# Render.com one-click deploy config
 services:
   - type: web
     name: evidenceos-api
     runtime: node
     buildCommand: npm install
     startCommand: node server.js
+    healthCheckPath: /api/health
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: PORT
         value: 3001
       - key: ALLOWED_ORIGIN
-        sync: false   # set manually in Render dashboard
+        sync: false   # set in Render dashboard
+      - key: ADMIN_JWT_SECRET
+        generateValue: true
+      - key: APP_URL
+        sync: false
+      - key: UPGRADE_URL
+        sync: false
+      # Stripe — set manually in dashboard
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRO_PRICE_ID
+        sync: false
+      # Google Workspace — set manually in dashboard
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_ADMIN_EMAIL
+        sync: false
+      # GitHub — set manually in dashboard
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_ORG
+        sync: false
+      # AWS IAM — set manually in dashboard
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      # Okta — set manually in dashboard
+      - key: OKTA_DOMAIN
+        sync: false
+      - key: OKTA_API_TOKEN
+        sync: false
+
+  # Persistent disk for SQLite DB (Render Starter plan+)
+  # Comment out if using the free tier (data resets on deploy)
+  # disk:
+  #   name: evidenceos-db
+  #   mountPath: /opt/render/project/src/data
+  #   sizeGB: 1

@@ -3,37 +3,72 @@ const cors = require("cors");
 const morgan = require("morgan");
 
 const demoRouter = require("./routes/demo");
+const authRouter = require("./routes/auth");
+const systemsRouter = require("./routes/systems");
+const usageRouter = require("./routes/usage");
+const billingRouter = require("./routes/billing");
+const adminRouter = require("./routes/admin");
+const { webhook } = require("./controllers/billingController");
+const { usageLogger } = require("./services/usage");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ── Middleware ────────────────────────────────────────────────────────────────
+// ── CORS ──────────────────────────────────────────────────────────────────────
+app.use(
+  cors({
+    origin: process.env.ALLOWED_ORIGIN || "*",
+    methods: ["GET", "POST", "DELETE", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+  })
+);
 
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN || "*", // Lock down to your landing page domain in production
-  methods: ["GET"],
-}));
+// ── Stripe webhook — must receive raw body BEFORE express.json() ──────────────
+app.post(
+  "/api/billing/webhook",
+  express.raw({ type: "application/json" }),
+  webhook
+);
 
+// ── General middleware ────────────────────────────────────────────────────────
+app.use(
+  morgan(process.env.NODE_ENV === "production" ? "combined" : "dev", {
+    // Never log Authorization or X-API-Key headers
+    skip: (req) => req.path === "/api/health",
+  })
+);
 app.use(express.json());
-app.use(morgan("dev")); // request logging
+
+// Usage logging middleware (runs after auth middleware per-route)
+app.use(usageLogger);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+app.get("/api/health", (_req, res) =>
+  res.json({ status: "ok", ts: new Date().toISOString(), version: "2.0.0" })
+);
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", ts: new Date().toISOString() });
-});
+app.use("/api/demo", demoRouter);       // Public mock endpoints (landing page)
+app.use("/api/auth", authRouter);       // Register, get API key
+app.use("/api/systems", systemsRouter); // Real system integrations (pro)
+app.use("/api/usage", usageRouter);     // Usage stats (any authenticated key)
+app.use("/api/billing", billingRouter); // Stripe checkout + subscription info
+app.use("/api/admin", adminRouter);     // Admin management (JWT)
 
-app.use("/api/demo", demoRouter);
+// ── 404 ───────────────────────────────────────────────────────────────────────
+app.use((_req, res) => res.status(404).json({ error: "Not found." }));
 
-// 404 catch-all
-app.use((_req, res) => {
-  res.status(404).json({ error: "Not found" });
+// ── Error handler ─────────────────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  console.error("[error]", err.message);
+  res.status(500).json({ error: "Internal server error." });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`EvidenceOS API v2 running on http://localhost:${PORT}`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`EvidenceOS API running on http://localhost:${PORT}`);
-});
-
-module.exports = app; // exported for testing
+module.exports = app;
