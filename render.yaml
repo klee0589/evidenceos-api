@@ -1,0 +1,12 @@
+# Render.com one-click deploy config
+services:
+  - type: web
+    name: evidenceos-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: ALLOWED_ORIGIN
+        sync: false   # set manually in Render dashboard
