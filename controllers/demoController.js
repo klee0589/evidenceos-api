@@ -48,23 +48,54 @@ function resolveSystem(query) {
   return SYSTEMS[key] ? key : null;
 }
 
-function buildSummary(users) {
-  const total = users.length;
-  const warnings = users.filter((u) => !u.mfa).length;
+function buildSummary(allUsers) {
+  const total = allUsers.length;
+  const warnings = allUsers.filter((u) => !u.mfa).length;
   return warnings === 0
     ? `${total}/${total} users reviewed, all clear`
     : `${total}/${total} users reviewed, ${warnings} warning${warnings > 1 ? "s" : ""}`;
 }
 
 function randomTimestamp() {
-  // Vary timestamp slightly so each request feels "live"
   const now = new Date();
   now.setSeconds(now.getSeconds() - Math.floor(Math.random() * 60));
   return now.toISOString();
 }
 
+// Cursor-based pagination over an array
+function paginate(items, rawLimit, rawCursor) {
+  const limit = Math.min(Math.max(parseInt(rawLimit) || items.length, 1), 100);
+  const start = rawCursor
+    ? parseInt(Buffer.from(String(rawCursor), "base64").toString("ascii"), 10) || 0
+    : 0;
+  const page = items.slice(start, start + limit);
+  const nextStart = start + page.length;
+  const hasMore = nextStart < items.length;
+  return {
+    items: page,
+    pagination: {
+      next_cursor: hasMore ? Buffer.from(String(nextStart)).toString("base64") : null,
+      has_more: hasMore,
+    },
+  };
+}
+
+// Simulate slow/error responses for testing
+async function applySimulate(req, res) {
+  const sim = req.query.simulate;
+  if (sim === "slow") {
+    await new Promise((r) => setTimeout(r, 500 + Math.floor(Math.random() * 700)));
+  } else if (sim === "error" && Math.random() < 0.1) {
+    res.status(500).json({ error: "Simulated internal error." });
+    return true; // signal that response was sent
+  }
+  return false;
+}
+
 // GET /api/demo/access-review
-function getAccessReview(req, res) {
+async function getAccessReview(req, res) {
+  if (await applySimulate(req, res)) return;
+
   const systemKey = resolveSystem(req.query.system);
   if (!systemKey) {
     return res.status(400).json({
@@ -72,9 +103,25 @@ function getAccessReview(req, res) {
     });
   }
 
-  const { label, users } = SYSTEMS[systemKey];
-  const warnings = users.filter((u) => !u.mfa).length;
+  const { label, users: allUsers } = SYSTEMS[systemKey];
 
+  // Filtering
+  let filtered = allUsers;
+  if (req.query.onlyWarnings === "true") {
+    filtered = filtered.filter((u) => !u.mfa);
+  }
+
+  // Sorting
+  if (req.query.sort === "timestamp_asc") {
+    filtered = [...filtered].sort((a, b) => (a.lastLogin || "").localeCompare(b.lastLogin || ""));
+  } else if (req.query.sort === "timestamp_desc") {
+    filtered = [...filtered].sort((a, b) => (b.lastLogin || "").localeCompare(a.lastLogin || ""));
+  }
+
+  // Pagination
+  const { items: users, pagination } = paginate(filtered, req.query.limit, req.query.cursor);
+
+  const warnings = allUsers.filter((u) => !u.mfa).length;
   const ts = randomTimestamp();
 
   if (warnings > 0) {
@@ -83,7 +130,7 @@ function getAccessReview(req, res) {
       system: label,
       flagged_users: warnings,
       timestamp: ts,
-      data: users.filter((u) => !u.mfa),
+      data: allUsers.filter((u) => !u.mfa),
     });
   }
 
@@ -93,7 +140,8 @@ function getAccessReview(req, res) {
     timestamp: ts,
     status: warnings === 0 ? "Pass" : "Warning",
     users,
-    summary: buildSummary(users),
+    pagination,
+    summary: buildSummary(allUsers),
   });
 }
 
@@ -258,7 +306,9 @@ const AUDIT_LOGS = {
 };
 
 // GET /api/demo/audit-log
-function getAuditLog(req, res) {
+async function getAuditLog(req, res) {
+  if (await applySimulate(req, res)) return;
+
   const systemKey = resolveSystem(req.query.system);
   if (!systemKey) {
     return res.status(400).json({
@@ -266,10 +316,31 @@ function getAuditLog(req, res) {
     });
   }
 
-  const auditEvents = AUDIT_LOGS[systemKey];
+  const allEvents = AUDIT_LOGS[systemKey];
   const { label } = SYSTEMS[systemKey];
-  const warnings = auditEvents.filter((e) => e.risk === "high" || e.risk === "medium").length;
-  const highRisk = auditEvents.filter((e) => e.risk === "high");
+
+  // Filtering
+  let filtered = allEvents;
+  if (req.query.risk) {
+    filtered = filtered.filter((e) => e.risk === req.query.risk.toLowerCase());
+  }
+  if (req.query.user) {
+    const u = req.query.user.toLowerCase();
+    filtered = filtered.filter((e) => e.user.toLowerCase().includes(u));
+  }
+
+  // Sorting
+  if (req.query.sort === "timestamp_asc") {
+    filtered = [...filtered].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  } else if (req.query.sort === "timestamp_desc") {
+    filtered = [...filtered].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  }
+
+  // Pagination
+  const { items: events, pagination } = paginate(filtered, req.query.limit, req.query.cursor);
+
+  const warnings = allEvents.filter((e) => e.risk === "high" || e.risk === "medium").length;
+  const highRisk = allEvents.filter((e) => e.risk === "high");
   const ts = randomTimestamp();
 
   if (highRisk.length > 0) {
@@ -287,8 +358,9 @@ function getAuditLog(req, res) {
     system: label,
     timestamp: ts,
     status: warnings === 0 ? "Pass" : "Warning",
-    events: auditEvents,
-    summary: `${auditEvents.length} events reviewed, ${warnings} warning${warnings !== 1 ? "s" : ""}`,
+    events,
+    pagination,
+    summary: `${allEvents.length} events reviewed, ${warnings} warning${warnings !== 1 ? "s" : ""}`,
   });
 }
 

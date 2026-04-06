@@ -10,6 +10,8 @@ const billingRouter = require("./routes/billing");
 const adminRouter = require("./routes/admin");
 const reportsRouter = require("./routes/reports");
 const webhooksRouter = require("./routes/webhooks");
+const dashboardRouter = require("./routes/dashboard");
+const requestContext = require("./middleware/requestContext");
 const { usageLogger } = require("./services/usage");
 
 const app = express();
@@ -21,22 +23,25 @@ app.use(
     origin: process.env.ALLOWED_ORIGIN || "*",
     methods: ["GET", "POST", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+    exposedHeaders: ["X-Request-Id", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Plan", "X-API-Deprecated"],
   })
 );
 
 // ── General middleware ────────────────────────────────────────────────────────
 app.use(
   morgan(process.env.NODE_ENV === "production" ? "combined" : "dev", {
-    // Never log Authorization or X-API-Key headers
-    skip: (req) => req.path === "/api/health",
+    skip: (req) => req.path === "/api/health" || req.path === "/api/v1/health",
   })
 );
 app.use(express.json());
 
-// Usage logging middleware (runs after auth middleware per-route)
+// Request context: X-Request-Id header, response wrapper, structured logging
+app.use(requestContext);
+
+// Usage logging (fires after response, for authenticated requests)
 app.use(usageLogger);
 
-// Default rate-limit headers for public endpoints (authenticated routes override via rateLimitByPlan)
+// Default rate-limit headers for public endpoints (auth middleware overrides per key)
 app.use((_req, res, next) => {
   res.set({
     "X-RateLimit-Limit": 100,
@@ -46,19 +51,40 @@ app.use((_req, res, next) => {
   next();
 });
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-app.get("/api/health", (_req, res) =>
-  res.json({ status: "ok", ts: new Date().toISOString(), version: "2.0.0" })
-);
+// ── Deprecated marker (added before legacy /api/* routes) ────────────────────
+const markDeprecated = (_req, res, next) => {
+  res.set("X-API-Deprecated", "true");
+  next();
+};
 
-app.use("/api/demo", demoRouter);       // Public mock endpoints (landing page)
-app.use("/api/auth", authRouter);       // Register, get API key
-app.use("/api/systems", systemsRouter); // Real system integrations (pro)
-app.use("/api/usage", usageRouter);     // Usage stats (any authenticated key)
-app.use("/api/billing", billingRouter); // Stripe checkout + subscription info
-app.use("/api/admin", adminRouter);     // Admin management (JWT)
-app.use("/api/reports", reportsRouter); // Access review reports (exportable)
-app.use("/api/webhooks", webhooksRouter); // Webhook registration + dispatch
+// ── Health (v1 + legacy) ──────────────────────────────────────────────────────
+const healthHandler = (_req, res) =>
+  res.json({ status: "ok", ts: new Date().toISOString(), version: "2.0.0" });
+
+app.get("/api/v1/health", healthHandler);
+app.get("/api/health", markDeprecated, healthHandler);
+
+// ── API v1 routes (canonical, no deprecation header) ─────────────────────────
+app.use("/api/v1/demo", demoRouter);
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/systems", systemsRouter);
+app.use("/api/v1/usage", usageRouter);
+app.use("/api/v1/billing", billingRouter);
+app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/reports", reportsRouter);
+app.use("/api/v1/webhooks", webhooksRouter);
+app.use("/api/v1/dashboard", dashboardRouter);
+
+// ── Legacy /api/* routes (deprecated, still functional) ──────────────────────
+app.use("/api/demo", markDeprecated, demoRouter);
+app.use("/api/auth", markDeprecated, authRouter);
+app.use("/api/systems", markDeprecated, systemsRouter);
+app.use("/api/usage", markDeprecated, usageRouter);
+app.use("/api/billing", markDeprecated, billingRouter);
+app.use("/api/admin", markDeprecated, adminRouter);
+app.use("/api/reports", markDeprecated, reportsRouter);
+app.use("/api/webhooks", markDeprecated, webhooksRouter);
+app.use("/api/dashboard", markDeprecated, dashboardRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: "Not found." }));

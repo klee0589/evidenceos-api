@@ -34,12 +34,13 @@ function register(req, res) {
 
   const webhook = dispatcher.register(req.apiKey.id, url, events);
   const { apiKeyId, ...response } = webhook;
-  res.status(201).json(response);
+  // secret is returned exactly once — store it; it will not be shown again
+  res.status(201).json({ ...response, _notice: "Save your webhook secret. It will not be shown again." });
 }
 
 // GET /api/webhooks
 function list(req, res) {
-  const hooks = dispatcher.getByKey(req.apiKey.id).map(({ apiKeyId, ...wh }) => wh);
+  const hooks = dispatcher.getByKey(req.apiKey.id).map(({ apiKeyId, secret, ...wh }) => wh);
   res.json({ webhooks: hooks, total: hooks.length });
 }
 

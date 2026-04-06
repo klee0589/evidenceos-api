@@ -1,5 +1,9 @@
 const db = require("../db");
 
+// Rolling in-memory analytics buffer (max 1000 entries)
+const analyticsLog = [];
+const ANALYTICS_MAX = 1000;
+
 // Log a single API call — PII-safe: no user emails, no response bodies
 function logUsage({ apiKeyId, endpoint, system = null, statusCode, responseMs }) {
   db.prepare(
@@ -13,13 +17,28 @@ function usageLogger(req, res, next) {
   const start = Date.now();
   res.on("finish", () => {
     if (!req.apiKey) return; // skip unauthenticated (demo/health) routes
+
+    const responseMs = Date.now() - start;
+
     logUsage({
       apiKeyId: req.apiKey.id,
       endpoint: req.path,
       system: req.query.system || null,
       statusCode: res.statusCode,
-      responseMs: Date.now() - start,
+      responseMs,
     });
+
+    // Push to in-memory analytics buffer
+    const entry = {
+      api_key_id: req.apiKey.id,
+      endpoint: req.path,
+      system: req.query.system || null,
+      status: res.statusCode,
+      response_ms: responseMs,
+      ts: new Date().toISOString(),
+    };
+    analyticsLog.push(entry);
+    if (analyticsLog.length > ANALYTICS_MAX) analyticsLog.shift();
   });
   next();
 }
@@ -133,4 +152,4 @@ function getGlobalUsage(days = 7) {
   };
 }
 
-module.exports = { logUsage, usageLogger, getUsageForKey, getGlobalUsage };
+module.exports = { logUsage, usageLogger, getUsageForKey, getGlobalUsage, analyticsLog };
