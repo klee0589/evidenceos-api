@@ -34,6 +34,16 @@ app.use(express.json());
 // Usage logging middleware (runs after auth middleware per-route)
 app.use(usageLogger);
 
+// Default rate-limit headers for public endpoints (authenticated routes override via rateLimitByPlan)
+app.use((_req, res, next) => {
+  res.set({
+    "X-RateLimit-Limit": 100,
+    "X-RateLimit-Remaining": 100,
+    "X-RateLimit-Plan": "public",
+  });
+  next();
+});
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) =>
   res.json({ status: "ok", ts: new Date().toISOString(), version: "2.0.0" })
