@@ -17,6 +17,7 @@ function usageLogger(req, res, next) {
   const start = Date.now();
   res.on("finish", () => {
     if (!req.apiKey) return; // skip unauthenticated (demo/health) routes
+    if (!req.apiKey.id) return; // skip master key (id: 0, not in DB)
 
     const responseMs = Date.now() - start;
 

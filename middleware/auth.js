@@ -26,10 +26,13 @@ function resetIfNewDay(keyRow) {
 // Attaches req.apiKey (the DB row) — used on all protected routes
 function requireApiKey(req, res, next) {
   const raw =
-    (req.headers["x-api-key"]) ||
+    req.headers["x-api-key"] ||
     (req.headers.authorization?.startsWith("Bearer ")
       ? req.headers.authorization.slice(7)
-      : null);
+      : null) ||
+    req.query["X-API-Key"] ||
+    req.query["api_key"] ||
+    null;
 
   if (!raw) {
     return res.status(401).json({ error: "Missing API key. Pass via X-API-Key header or Authorization: Bearer <key>." });
