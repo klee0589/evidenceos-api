@@ -39,6 +39,24 @@ function requireApiKey(req, res, next) {
     return res.status(401).json({ error: "Invalid API key format." });
   }
 
+  // ── Master key bypass (survives DB resets) ───────────────────────────────────
+  // Set MASTER_API_KEY in Render env vars so your dev key always works.
+  if (process.env.MASTER_API_KEY && raw === process.env.MASTER_API_KEY) {
+    req.apiKey = {
+      id: 0,
+      key_prefix: raw.slice(0, 16),
+      user_email: process.env.MASTER_API_EMAIL || "admin@evidenceos.com",
+      plan: process.env.MASTER_API_PLAN || "pro",
+      calls_today: 0,
+      last_reset: new Date().toISOString().slice(0, 10),
+      is_active: 1,
+    };
+    const { PLAN_LIMITS } = require("./rateLimit");
+    const limit = PLAN_LIMITS[req.apiKey.plan] ?? PLAN_LIMITS.free;
+    res.set({ "X-RateLimit-Limit": limit, "X-RateLimit-Remaining": limit, "X-RateLimit-Plan": req.apiKey.plan });
+    return next();
+  }
+
   const hash = hashKey(raw);
   let keyRow = db.prepare("SELECT * FROM api_keys WHERE key_hash = ?").get(hash);
 
