@@ -43,10 +43,15 @@ services:
         sync: false
       - key: OKTA_API_TOKEN
         sync: false
-
-  # Persistent disk for SQLite DB (Render Starter plan+)
-  # Comment out if using the free tier (data resets on deploy)
-  # disk:
-  #   name: evidenceos-db
-  #   mountPath: /opt/render/project/src/data
-  #   sizeGB: 1
+      # Master key — always authenticates regardless of DB state
+      # Set this to your own eos_live_... key in the Render dashboard
+      - key: MASTER_API_KEY
+        sync: false
+      - key: MASTER_API_EMAIL
+        sync: false
+      - key: MASTER_API_PLAN
+        value: pro
+    disk:
+      name: evidenceos-db
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
