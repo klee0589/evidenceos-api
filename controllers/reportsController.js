@@ -26,28 +26,71 @@ function incrementDailyCount(keyId) {
   dailyCounts.set(k, (dailyCounts.get(k) || 0) + 1);
 }
 
+const ADMIN_ROLES = ["Admin", "Owner", "Super Admin", "Administrator", "Org Admin"];
+const STALE_DAYS = 30;
+
+function isStale(lastLogin) {
+  if (!lastLogin) return false;
+  const days = (Date.now() - new Date(lastLogin).getTime()) / 86400000;
+  return days > STALE_DAYS;
+}
+
 function buildReport(systemKey, includeWarningsOnly) {
   const { users } = SYSTEMS[systemKey];
 
-  const flaggedUsers = users.filter((u) => !u.mfa);
-  const adminRoles = ["Admin", "Owner", "Super Admin", "Administrator"];
-  const adminAccounts = users.filter((u) => adminRoles.some((r) => u.role.includes(r)));
+  const adminAccounts  = users.filter((u) => ADMIN_ROLES.some((r) => u.role.includes(r)));
+  const noMfa          = users.filter((u) => !u.mfa);
+  const staleLogins    = users.filter((u) => isStale(u.lastLogin));
+  const criticalUsers  = noMfa.filter((u) => ADMIN_ROLES.some((r) => u.role.includes(r)));
 
-  const findings = flaggedUsers.map((u) => ({
-    user: u.email,
-    issue: "MFA not enabled",
-    severity: "high",
-    recommendation: "Enable MFA immediately",
-  }));
+  const findings = [
+    // Critical: admin with no MFA
+    ...criticalUsers.map((u) => ({
+      user: u.email,
+      role: u.role,
+      issue: "Admin account with MFA disabled",
+      severity: "critical",
+      recommendation: "Enable MFA on this admin account immediately",
+    })),
+    // High: non-admin with no MFA (not already listed as critical)
+    ...noMfa
+      .filter((u) => !ADMIN_ROLES.some((r) => u.role.includes(r)))
+      .map((u) => ({
+        user: u.email,
+        role: u.role,
+        issue: "MFA not enabled",
+        severity: "high",
+        recommendation: "Enable MFA immediately",
+      })),
+    // Medium: stale login > 30 days
+    ...staleLogins
+      .filter((u) => u.mfa) // only flag stale if not already caught above
+      .map((u) => ({
+        user: u.email,
+        role: u.role,
+        issue: `No login in ${Math.floor((Date.now() - new Date(u.lastLogin).getTime()) / 86400000)} days`,
+        severity: "medium",
+        recommendation: "Review account necessity or offboard user",
+      })),
+  ];
+
+  const severityCount = (s) => findings.filter((f) => f.severity === s).length;
 
   return {
     summary: {
       total_users: users.length,
-      flagged_users: flaggedUsers.length,
-      mfa_issues: flaggedUsers.length,
+      flagged_users: findings.length,
+      mfa_issues: noMfa.length,
+      stale_logins: staleLogins.length,
       admin_accounts: adminAccounts.length,
+      severity_distribution: {
+        critical: severityCount("critical"),
+        high:     severityCount("high"),
+        medium:   severityCount("medium"),
+        low:      severityCount("low"),
+      },
     },
-    findings: includeWarningsOnly ? findings : findings,
+    findings,
   };
 }
 

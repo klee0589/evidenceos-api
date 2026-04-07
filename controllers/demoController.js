@@ -1,39 +1,53 @@
 const dispatcher = require("../services/webhookDispatcher");
 
-// Seed data for each supported system
+// Seed data for each supported system — realistic user counts, stale logins, mixed MFA
 const SYSTEMS = {
   "google-workspace": {
     label: "Google Workspace",
     users: [
-      { email: "alice@example.com", role: "Admin", mfa: true, lastLogin: "2026-04-04T09:12:00Z" },
-      { email: "bob@example.com", role: "Member", mfa: false, lastLogin: "2026-04-03T14:45:00Z" },
-      { email: "carol@example.com", role: "Member", mfa: true, lastLogin: "2026-04-05T08:01:00Z" },
+      { email: "alice@company.com",   role: "Admin",  mfa: true,  lastLogin: "2026-04-05T09:12:00Z", status: "active" },
+      { email: "bob@company.com",     role: "Member", mfa: false, lastLogin: "2026-04-03T14:45:00Z", status: "active" },
+      { email: "carol@company.com",   role: "Member", mfa: true,  lastLogin: "2026-04-05T08:01:00Z", status: "active" },
+      { email: "david@company.com",   role: "Member", mfa: true,  lastLogin: "2026-03-10T11:30:00Z", status: "active" },
+      { email: "eve@company.com",     role: "Member", mfa: false, lastLogin: "2026-02-14T16:00:00Z", status: "active" },
+      { email: "frank@company.com",   role: "Admin",  mfa: true,  lastLogin: "2026-04-04T07:55:00Z", status: "active" },
+      { email: "grace@company.com",   role: "Member", mfa: true,  lastLogin: "2026-04-01T13:22:00Z", status: "suspended" },
     ],
   },
   github: {
     label: "GitHub",
     users: [
-      { email: "dev-alice@example.com", role: "Owner", mfa: true, lastLogin: "2026-04-05T07:30:00Z" },
-      { email: "dev-bob@example.com", role: "Member", mfa: false, lastLogin: "2026-04-02T11:22:00Z" },
-      { email: "dev-carol@example.com", role: "Member", mfa: true, lastLogin: "2026-04-04T16:55:00Z" },
-      { email: "dev-dan@example.com", role: "Billing Manager", mfa: true, lastLogin: "2026-04-01T09:00:00Z" },
+      { email: "dev-alice@company.com",  role: "Owner",          mfa: true,  lastLogin: "2026-04-05T07:30:00Z", status: "active" },
+      { email: "dev-bob@company.com",    role: "Member",         mfa: false, lastLogin: "2026-04-02T11:22:00Z", status: "active" },
+      { email: "dev-carol@company.com",  role: "Member",         mfa: true,  lastLogin: "2026-04-04T16:55:00Z", status: "active" },
+      { email: "dev-dan@company.com",    role: "Billing Manager",mfa: true,  lastLogin: "2026-04-01T09:00:00Z", status: "active" },
+      { email: "dev-eve@company.com",    role: "Member",         mfa: false, lastLogin: "2026-03-15T14:10:00Z", status: "active" },
+      { email: "dev-frank@company.com",  role: "Owner",          mfa: true,  lastLogin: "2026-04-05T06:45:00Z", status: "active" },
     ],
   },
   aws: {
     label: "AWS IAM",
     users: [
-      { email: "ops-alice@example.com", role: "Administrator", mfa: true, lastLogin: "2026-04-05T06:15:00Z" },
-      { email: "ops-bob@example.com", role: "Developer", mfa: true, lastLogin: "2026-04-04T21:00:00Z" },
-      { email: "ops-eve@example.com", role: "ReadOnly", mfa: false, lastLogin: "2026-03-29T10:30:00Z" },
+      { email: "ops-alice@company.com",  role: "Administrator", mfa: true,  lastLogin: "2026-04-05T06:15:00Z", status: "active",   consoleAccess: true  },
+      { email: "ops-bob@company.com",    role: "Developer",     mfa: true,  lastLogin: "2026-04-04T21:00:00Z", status: "active",   consoleAccess: true  },
+      { email: "ops-carol@company.com",  role: "Developer",     mfa: true,  lastLogin: "2026-04-03T18:30:00Z", status: "active",   consoleAccess: true  },
+      { email: "ops-dan@company.com",    role: "ReadOnly",      mfa: false, lastLogin: "2026-03-29T10:30:00Z", status: "active",   consoleAccess: false },
+      { email: "ops-eve@company.com",    role: "ReadOnly",      mfa: false, lastLogin: "2026-02-20T08:00:00Z", status: "active",   consoleAccess: false },
+      { email: "ops-frank@company.com",  role: "Administrator", mfa: true,  lastLogin: "2026-04-05T05:00:00Z", status: "active",   consoleAccess: true  },
+      { email: "svc-deploy@company.com", role: "ServiceAccount",mfa: false, lastLogin: null,                   status: "active",   consoleAccess: false },
     ],
   },
   okta: {
     label: "Okta",
     users: [
-      { email: "alice@example.com", role: "Super Admin", mfa: true, lastLogin: "2026-04-05T08:45:00Z" },
-      { email: "frank@example.com", role: "User", mfa: false, lastLogin: "2026-04-03T13:10:00Z" },
-      { email: "grace@example.com", role: "User", mfa: true, lastLogin: "2026-04-04T17:22:00Z" },
-      { email: "henry@example.com", role: "User", mfa: false, lastLogin: "2026-04-01T08:00:00Z" },
+      { email: "alice@company.com",  role: "Super Admin", mfa: true,  lastLogin: "2026-04-05T08:45:00Z", status: "ACTIVE"    },
+      { email: "bob@company.com",    role: "Org Admin",   mfa: true,  lastLogin: "2026-04-04T12:30:00Z", status: "ACTIVE"    },
+      { email: "carol@company.com",  role: "User",        mfa: true,  lastLogin: "2026-04-04T17:22:00Z", status: "ACTIVE"    },
+      { email: "dan@company.com",    role: "User",        mfa: false, lastLogin: "2026-04-03T13:10:00Z", status: "ACTIVE"    },
+      { email: "eve@company.com",    role: "User",        mfa: false, lastLogin: "2026-04-01T08:00:00Z", status: "ACTIVE"    },
+      { email: "frank@company.com",  role: "User",        mfa: true,  lastLogin: "2026-03-20T09:15:00Z", status: "ACTIVE"    },
+      { email: "grace@company.com",  role: "User",        mfa: false, lastLogin: "2026-02-10T11:00:00Z", status: "SUSPENDED" },
+      { email: "henry@company.com",  role: "Read Only",   mfa: true,  lastLogin: "2026-04-02T16:40:00Z", status: "ACTIVE"    },
     ],
   },
 };
